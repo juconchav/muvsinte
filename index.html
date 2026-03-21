@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Motion Synth Ultimate Studio</title>
+    <style>
+        :root {
+            --bg: #030305;
+            --card: rgba(18, 18, 28, 0.85);
+            --accent: #00f2ff;
+            --text: #f1f5f9;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg); color: var(--text);
+            margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh;
+        }
+
+        #viewport {
+            position: relative; width: 90vw; max-width: 420px; aspect-ratio: 1/1;
+            background: #000; border-radius: 28px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); opacity: 0.3; }
+        canvas#overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
+
+        .main-panel {
+            width: 90vw; max-width: 420px; margin-top: 15px; padding: 22px;
+            background: var(--card); backdrop-filter: blur(20px); border-radius: 28px; border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Botonera Principal */
+        .btn-group { display: flex; gap: 8px; margin-bottom: 15px; }
+        .btn {
+            flex: 1; padding: 14px; border: none; border-radius: 14px;
+            font-size: 11px; font-weight: 800; cursor: pointer; text-transform: uppercase;
+        }
+        #startBtn { background: var(--accent); color: #000; }
+        #stopBtn { background: rgba(255,255,255,0.05); color: #666; display: none; }
+        #recBtn { background: #ff3e3e; color: white; display: none; }
+        .recording { animation: pulse 1.5s infinite; }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* Selector de Timbre */
+        .wave-selector { display: flex; gap: 5px; margin-bottom: 20px; }
+        .wave-btn {
+            flex: 1; padding: 10px 5px; background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+            color: #888; font-size: 9px; font-weight: 700; cursor: pointer;
+        }
+        .wave-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+        .settings label { font-size: 10px; color: #64748b; font-weight: 800; display: block; margin-bottom: 10px; }
+        input[type="range"] { -webkit-appearance: none; width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: var(--accent); border-radius: 50%; border: 3px solid #111; cursor: pointer; }
+
+        canvas#proc { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="viewport">
+        <video id="v" autoplay playsinline></video>
+        <canvas id="overlay"></canvas>
+    </div>
+
+    <div class="main-panel">
+        <div class="btn-group">
+            <button id="startBtn" class="btn">ENCENDER</button>
+            <button id="recBtn" class="btn">GRABAR</button>
+            <button id="stopBtn" class="btn">PARAR</button>
+        </div>
+
+        <label style="font-size: 10px; color: #64748b; font-weight: 800; display: block; margin-bottom: 8px;">TIMBRE DEL SONIDO</label>
+        <div class="wave-selector">
+            <button class="wave-btn active" data-wave="sine">SUAVE</button>
+            <button class="wave-btn" data-wave="triangle">DULCE</button>
+            <button class="wave-btn" data-wave="square">RETRO</button>
+            <button class="wave-btn" data-wave="sawtooth">POWER</button>
+        </div>
+
+        <div class="settings">
+            <label>SENSIBILIDAD <span id="sensVal" style="float:right; color:var(--accent)">30</span></label>
+            <input type="range" id="sens" min="5" max="100" value="30">
+        </div>
+    </div>
+
+    <canvas id="proc"></canvas>
+
+<script>
+    const v = document.getElementById('v'), proc = document.getElementById('proc'), 
+          ov = document.getElementById('overlay'), startBtn = document.getElementById('startBtn'),
+          stopBtn = document.getElementById('stopBtn'), recBtn = document.getElementById('recBtn'),
+          sensInput = document.getElementById('sens'), sensVal = document.getElementById('sensVal');
+
+    const pCtx = proc.getContext('2d', { willReadFrequently: true });
+    const oCtx = ov.getContext('2d');
+
+    let prev = null, active = false, sensitivity = 30, audioCtx = null, streamRef = null;
+    let currentWave = 'sine', lastT = 0, audioDest, mediaRecorder, recordedChunks = [];
+    let isRecording = false;
+
+    // Selector de ondas
+    document.querySelectorAll('.wave-btn').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.wave-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentWave = btn.dataset.wave;
+        };
+    });
+
+    startBtn.onclick = async () => {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            audioDest = audioCtx.createMediaStreamDestination();
+        }
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+        try {
+            streamRef = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            v.srcObject = streamRef;
+            v.onloadedmetadata = () => {
+                active = true;
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'block';
+                recBtn.style.display = 'block';
+                requestAnimationFrame(loop);
+            };
+        } catch (e) { alert("Cámara no disponible."); }
+    };
+
+    function playNote(idx) {
+        const now = Date.now();
+        if (now - lastT < 120) return;
+
+        const hue = 180 + (idx * 1.3);
+        const color = `hsl(${hue}, 100%, 60%)`;
+        document.documentElement.style.setProperty('--accent', color);
+
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        
+        osc.type = currentWave;
+        osc.frequency.setValueAtTime(120 + (idx * 12), audioCtx.currentTime);
+        
+        g.gain.setValueAtTime(0, audioCtx.currentTime);
+        g.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.5);
+        
+        osc.connect(g);
+        g.connect(audioCtx.destination);
+        g.connect(audioDest); // Para la grabación
+        
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+        lastT = now;
+    }
+
+    recBtn.onclick = () => {
+        if (!isRecording) {
+            recordedChunks = [];
+            const combined = new MediaStream([
+                ...ov.captureStream(30).getVideoTracks(),
+                ...audioDest.stream.getAudioTracks()
+            ]);
+            mediaRecorder = new MediaRecorder(combined, { mimeType: 'video/webm' });
+            mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `synth-session-${Date.now()}.webm`;
+                a.click();
+            };
+            mediaRecorder.start();
+            isRecording = true;
+            recBtn.innerText = "PARAR REC";
+            recBtn.classList.add('recording');
+        } else {
+            mediaRecorder.stop();
+            isRecording = false;
+            recBtn.innerText = "GRABAR";
+            recBtn.classList.remove('recording');
+        }
+    };
+
+    function loop() {
+        if (!active) return;
+        if (proc.width !== v.videoWidth) {
+            proc.width = ov.width = v.videoWidth;
+            proc.height = ov.height = v.videoHeight;
+        }
+
+        pCtx.drawImage(v, 0, 0, proc.width, proc.height);
+        const curr = pCtx.getImageData(0, 0, proc.width, proc.height);
+        oCtx.clearRect(0, 0, ov.width, ov.height);
+        
+        // Si grabamos, dibujamos el video de fondo en el canvas de grabación
+        if(isRecording) {
+            oCtx.save(); oCtx.globalAlpha = 0.3; oCtx.translate(ov.width, 0); oCtx.scale(-1, 1);
+            oCtx.drawImage(v, 0, 0, ov.width, ov.height); oCtx.restore();
+        }
+
+        let sx = 0, sy = 0, c = 0;
+        if (prev) {
+            const d1 = prev.data, d2 = curr.data;
+            for (let i = 0; i < d1.length; i += 130) {
+                if (Math.abs(d1[i] - d2[i]) > sensitivity) {
+                    const pi = i / 4;
+                    sx += pi % proc.width; sy += Math.floor(pi / proc.width); c++;
+                }
+            }
+        }
+
+        if (c > 35) {
+            const ax = sx / c, ay = sy / c;
+            const col = (10-1) - Math.floor(ax/(ov.width/10));
+            const row = Math.floor(ay/(ov.height/10));
+            const idx = (row * 10) + col;
+
+            oCtx.fillStyle = `hsla(${180+(idx*1.3)}, 100%, 50%, 0.5)`;
+            oCtx.fillRect(Math.floor(ax/(ov.width/10))*(ov.width/10)+2, (row*(ov.height/10))+2, (ov.width/10)-4, (ov.height/10)-4);
+            playNote(idx);
+        }
+        prev = curr;
+        requestAnimationFrame(loop);
+    }
+
+    stopBtn.onclick = () => {
+        active = false;
+        if (streamRef) streamRef.getTracks().forEach(t => t.stop());
+        v.srcObject = null;
+        oCtx.clearRect(0, 0, ov.width, ov.height);
+        stopBtn.style.display = 'none'; recBtn.style.display = 'none'; startBtn.style.display = 'block';
+    };
+
+    sensInput.oninput = (e) => {
+        sensitivity = e.target.value;
+        sensVal.innerText = sensitivity;
+    };
+</script>
+</body>
+</html>
