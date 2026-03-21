@@ -3,59 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Motion Synth Ultimate Studio</title>
+    <title>MuvSinte Studio Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#050508">
+    <link rel="apple-touch-icon" href="icono-192.png">
+    
     <style>
         :root {
-            --bg: #030305;
-            --card: rgba(18, 18, 28, 0.85);
+            --bg: #050508;
+            --card: rgba(20, 20, 35, 0.8);
             --accent: #00f2ff;
-            --text: #f1f5f9;
+            --record: #ff3e3e;
+            --text: #f8fafc;
         }
 
         body {
-            font-family: 'Inter', system-ui, sans-serif;
-            background: var(--bg); color: var(--text);
-            margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow-x: hidden;
         }
 
+        /* Contenedor de Cámara */
         #viewport {
-            position: relative; width: 90vw; max-width: 420px; aspect-ratio: 1/1;
-            background: #000; border-radius: 28px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+            width: 90vw;
+            max-width: 450px;
+            aspect-ratio: 1/1;
+            background: #000;
+            border-radius: 32px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
         }
 
-        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); opacity: 0.3; }
-        canvas#overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
+        video { 
+            width: 100%; height: 100%; object-fit: cover; 
+            opacity: 0.3; transition: opacity 0.5s;
+        }
+        video.active { opacity: 0.6; }
 
+        canvas#overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+        }
+
+        /* Panel de Control */
         .main-panel {
-            width: 90vw; max-width: 420px; margin-top: 15px; padding: 22px;
-            background: var(--card); backdrop-filter: blur(20px); border-radius: 28px; border: 1px solid rgba(255,255,255,0.1);
+            width: 90vw;
+            max-width: 450px;
+            margin-top: 15px;
+            padding: 20px;
+            background: var(--card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 28px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-sizing: border-box;
         }
 
-        /* Botonera Principal */
-        .btn-group { display: flex; gap: 8px; margin-bottom: 15px; }
+        .btn-group { display: flex; gap: 8px; margin-bottom: 12px; }
         .btn {
             flex: 1; padding: 14px; border: none; border-radius: 14px;
-            font-size: 11px; font-weight: 800; cursor: pointer; text-transform: uppercase;
+            font-size: 11px; font-weight: 800; cursor: pointer;
+            transition: 0.2s; text-transform: uppercase;
         }
-        #startBtn { background: var(--accent); color: #000; }
-        #stopBtn { background: rgba(255,255,255,0.05); color: #666; display: none; }
-        #recBtn { background: #ff3e3e; color: white; display: none; }
-        .recording { animation: pulse 1.5s infinite; }
 
+        #startBtn { background: var(--accent); color: #000; }
+        #stopBtn { background: rgba(255,255,255,0.05); color: #ff3e3e; display: none; }
+        #recBtn { background: var(--record); color: white; display: none; }
+        #flipBtn { background: rgba(255,255,255,0.1); color: white; display: none; }
+        
+        .recording { animation: pulse 1.5s infinite; box-shadow: 0 0 15px var(--record); }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-        /* Selector de Timbre */
-        .wave-selector { display: flex; gap: 5px; margin-bottom: 20px; }
+        /* Selector de Ondas */
+        .wave-selector { display: flex; gap: 4px; margin: 10px 0 20px 0; }
         .wave-btn {
-            flex: 1; padding: 10px 5px; background: rgba(255,255,255,0.05);
+            flex: 1; padding: 10px 4px; background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
-            color: #888; font-size: 9px; font-weight: 700; cursor: pointer;
+            color: #666; font-size: 9px; font-weight: 700; cursor: pointer;
         }
         .wave-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
 
-        .settings label { font-size: 10px; color: #64748b; font-weight: 800; display: block; margin-bottom: 10px; }
+        #history { display: flex; gap: 6px; margin-bottom: 15px; justify-content: center; height: 38px; overflow: hidden; }
+        .note-tag { font-size: 8px; padding: 6px 8px; border-radius: 10px; background: rgba(255,255,255,0.05); border-bottom: 2px solid; text-align: center; }
+
+        .settings label { font-size: 9px; color: #64748b; font-weight: 800; display: block; margin-bottom: 8px; text-transform: uppercase; }
         input[type="range"] { -webkit-appearance: none; width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; }
-        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: var(--accent); border-radius: 50%; border: 3px solid #111; cursor: pointer; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; background: var(--accent); border-radius: 50%; border: 3px solid #111; cursor: pointer; }
 
         canvas#proc { display: none; }
     </style>
@@ -70,20 +114,22 @@
     <div class="main-panel">
         <div class="btn-group">
             <button id="startBtn" class="btn">ENCENDER</button>
+            <button id="flipBtn" class="btn">🔄 GIRAR</button>
             <button id="recBtn" class="btn">GRABAR</button>
             <button id="stopBtn" class="btn">PARAR</button>
         </div>
 
-        <label style="font-size: 10px; color: #64748b; font-weight: 800; display: block; margin-bottom: 8px;">TIMBRE DEL SONIDO</label>
         <div class="wave-selector">
-            <button class="wave-btn active" data-wave="sine">SUAVE</button>
-            <button class="wave-btn" data-wave="triangle">DULCE</button>
-            <button class="wave-btn" data-wave="square">RETRO</button>
-            <button class="wave-btn" data-wave="sawtooth">POWER</button>
+            <button class="wave-btn active" data-wave="sine">SINE</button>
+            <button class="wave-btn" data-wave="triangle">TRIANGLE</button>
+            <button class="wave-btn" data-wave="square">SQUARE</button>
+            <button class="wave-btn" data-wave="sawtooth">SAW</button>
         </div>
 
+        <div id="history"></div>
+
         <div class="settings">
-            <label>SENSIBILIDAD <span id="sensVal" style="float:right; color:var(--accent)">30</span></label>
+            <label>Sensibilidad <span id="sensVal" style="float:right; color:var(--accent)">30</span></label>
             <input type="range" id="sens" min="5" max="100" value="30">
         </div>
     </div>
@@ -94,16 +140,18 @@
     const v = document.getElementById('v'), proc = document.getElementById('proc'), 
           ov = document.getElementById('overlay'), startBtn = document.getElementById('startBtn'),
           stopBtn = document.getElementById('stopBtn'), recBtn = document.getElementById('recBtn'),
-          sensInput = document.getElementById('sens'), sensVal = document.getElementById('sensVal');
+          flipBtn = document.getElementById('flipBtn'), sensInput = document.getElementById('sens'), 
+          sensVal = document.getElementById('sensVal'), historyEl = document.getElementById('history');
 
     const pCtx = proc.getContext('2d', { willReadFrequently: true });
     const oCtx = ov.getContext('2d');
 
+    const GRID = 10;
     let prev = null, active = false, sensitivity = 30, audioCtx = null, streamRef = null;
-    let currentWave = 'sine', lastT = 0, audioDest, mediaRecorder, recordedChunks = [];
-    let isRecording = false;
+    let currentWave = 'sine', lastT = 0, recentNotes = [], currentFacingMode = "user";
+    let audioDest, mediaRecorder, recordedChunks = [], isRecording = false;
 
-    // Selector de ondas
+    // Cambiar Timbre
     document.querySelectorAll('.wave-btn').forEach(btn => {
         btn.onclick = () => {
             document.querySelectorAll('.wave-btn').forEach(b => b.classList.remove('active'));
@@ -118,18 +166,38 @@
             audioDest = audioCtx.createMediaStreamDestination();
         }
         if (audioCtx.state === 'suspended') await audioCtx.resume();
+        await initCamera();
+    };
+
+    flipBtn.onclick = async () => {
+        currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
+        await initCamera();
+    };
+
+    async function initCamera() {
+        if (streamRef) streamRef.getTracks().forEach(t => t.stop());
         try {
-            streamRef = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            streamRef = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: currentFacingMode, width: 640, height: 640 } 
+            });
             v.srcObject = streamRef;
             v.onloadedmetadata = () => {
                 active = true;
+                v.classList.add('active');
+                
+                // Efecto espejo dinámico
+                const mirror = currentFacingMode === "user" ? "scaleX(-1)" : "scaleX(1)";
+                v.style.transform = mirror;
+                ov.style.transform = mirror;
+
                 startBtn.style.display = 'none';
                 stopBtn.style.display = 'block';
                 recBtn.style.display = 'block';
+                flipBtn.style.display = 'block';
                 requestAnimationFrame(loop);
             };
-        } catch (e) { alert("Cámara no disponible."); }
-    };
+        } catch (e) { alert("Error al acceder a la cámara."); }
+    }
 
     function playNote(idx) {
         const now = Date.now();
@@ -141,7 +209,6 @@
 
         const osc = audioCtx.createOscillator();
         const g = audioCtx.createGain();
-        
         osc.type = currentWave;
         osc.frequency.setValueAtTime(120 + (idx * 12), audioCtx.currentTime);
         
@@ -151,28 +218,34 @@
         
         osc.connect(g);
         g.connect(audioCtx.destination);
-        g.connect(audioDest); // Para la grabación
+        g.connect(audioDest);
         
         osc.start();
         osc.stop(audioCtx.currentTime + 0.5);
         lastT = now;
+        updateHistory(idx + 1, Math.round(120 + (idx * 12)), color);
+    }
+
+    function updateHistory(id, freq, color) {
+        recentNotes.unshift({ id, freq, color });
+        if (recentNotes.length > 5) recentNotes.pop();
+        historyEl.innerHTML = recentNotes.map(n => `<div class="note-tag" style="border-color:${n.color}; color:${n.color}">Z${n.id}<br>${n.freq}Hz</div>`).join('');
     }
 
     recBtn.onclick = () => {
         if (!isRecording) {
             recordedChunks = [];
-            const combined = new MediaStream([
+            const stream = new MediaStream([
                 ...ov.captureStream(30).getVideoTracks(),
                 ...audioDest.stream.getAudioTracks()
             ]);
-            mediaRecorder = new MediaRecorder(combined, { mimeType: 'video/webm' });
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
             mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
             mediaRecorder.onstop = () => {
                 const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `synth-session-${Date.now()}.webm`;
-                a.click();
+                a.href = url; a.download = `muvsinte-${Date.now()}.webm`; a.click();
             };
             mediaRecorder.start();
             isRecording = true;
@@ -197,9 +270,10 @@
         const curr = pCtx.getImageData(0, 0, proc.width, proc.height);
         oCtx.clearRect(0, 0, ov.width, ov.height);
         
-        // Si grabamos, dibujamos el video de fondo en el canvas de grabación
+        // Render fondo para grabación
         if(isRecording) {
-            oCtx.save(); oCtx.globalAlpha = 0.3; oCtx.translate(ov.width, 0); oCtx.scale(-1, 1);
+            oCtx.save(); oCtx.globalAlpha = 0.3;
+            if(currentFacingMode === "user") { oCtx.translate(ov.width, 0); oCtx.scale(-1, 1); }
             oCtx.drawImage(v, 0, 0, ov.width, ov.height); oCtx.restore();
         }
 
@@ -216,12 +290,12 @@
 
         if (c > 35) {
             const ax = sx / c, ay = sy / c;
-            const col = (10-1) - Math.floor(ax/(ov.width/10));
-            const row = Math.floor(ay/(ov.height/10));
-            const idx = (row * 10) + col;
+            const col = (GRID-1) - Math.floor(ax/(ov.width/GRID));
+            const row = Math.floor(ay/(ov.height/GRID));
+            const idx = (row * GRID) + col;
 
             oCtx.fillStyle = `hsla(${180+(idx*1.3)}, 100%, 50%, 0.5)`;
-            oCtx.fillRect(Math.floor(ax/(ov.width/10))*(ov.width/10)+2, (row*(ov.height/10))+2, (ov.width/10)-4, (ov.height/10)-4);
+            oCtx.fillRect(Math.floor(ax/(ov.width/GRID))*(ov.width/GRID)+2, (row*(ov.height/GRID))+2, (ov.width/GRID)-4, (ov.height/GRID)-4);
             playNote(idx);
         }
         prev = curr;
@@ -229,11 +303,14 @@
     }
 
     stopBtn.onclick = () => {
+        if (isRecording) stopRecording();
         active = false;
         if (streamRef) streamRef.getTracks().forEach(t => t.stop());
         v.srcObject = null;
         oCtx.clearRect(0, 0, ov.width, ov.height);
-        stopBtn.style.display = 'none'; recBtn.style.display = 'none'; startBtn.style.display = 'block';
+        prev = null;
+        stopBtn.style.display = 'none'; recBtn.style.display = 'none'; flipBtn.style.display = 'none';
+        startBtn.style.display = 'block';
     };
 
     sensInput.oninput = (e) => {
